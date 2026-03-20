@@ -5,14 +5,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install yt-dlp
-
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
+
+RUN pip install --no-cache-dir aiogram==3.4.1 yt-dlp flask anthropic
 
 RUN mkdir -p downloads output
 
