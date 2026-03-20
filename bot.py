@@ -19,9 +19,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 import anthropic
 
 BOT_TOKEN = "8788961014:AAFXDB9bNxLJv6NtokMW01BbHi4yBV-weis"
-CLAUDE_API_KEY = os.getenv(“CLAUDE_API_KEY”, “”)
-CHANNEL_ID = os.getenv(“CHANNEL_ID”, “YOUR_CHANNEL_ID”)
-OWNER_ID = int(os.getenv(“OWNER_ID”, “0”))
+CLAUDE_API_KEY = "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"
 BOT_FILE = Path(**file**).resolve()
 DOWNLOADS_DIR = Path(“downloads”)
 OUTPUT_DIR = Path(“output”)
