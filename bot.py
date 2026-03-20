@@ -18,7 +18,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 import anthropic
 
-BOT_TOKEN = “8788961014:AAFXDB9bNxLJv6NtokMW01BbHi4yBV-weis”
+BOT_TOKEN = "8788961014:AAFXDB9bNxLJv6NtokMW01BbHi4yBV-weis"
 CLAUDE_API_KEY = os.getenv(“CLAUDE_API_KEY”, “”)
 CHANNEL_ID = os.getenv(“CHANNEL_ID”, “YOUR_CHANNEL_ID”)
 OWNER_ID = int(os.getenv(“OWNER_ID”, “0”))
