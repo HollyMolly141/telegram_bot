@@ -15,8 +15,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 import anthropic
 
 # ── Настройки (всё через переменные окружения) ──────────────────────
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8788961014:AAFXDB9bNxLJv6NtokMW01BbHi4yBV-weis")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "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")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "")
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
