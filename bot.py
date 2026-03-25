@@ -16,7 +16,7 @@ import anthropic
 
 # ── Настройки (всё через переменные окружения) ──────────────────────
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8788961014:AAFXDB9bNxLJv6NtokMW01BbHi4yBV-weis")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "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")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "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")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "")
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
