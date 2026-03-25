@@ -4,6 +4,7 @@ import logging
 import uuid
 import shutil
 import threading
+import json
 from pathlib import Path
 from flask import Flask
 from aiogram import Bot, Dispatcher, F
@@ -12,11 +13,11 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-import anthropic
+from openai import OpenAI
 
-# ── Настройки (всё через переменные окружения) ──────────────────────
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8788961014:AAFXDB9bNxLJv6NtokMW01BbHi4yBV-weis")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "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")
+# ── Настройки ───────────────────────────────────────────────────────
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+GROK_API_KEY = os.getenv("GROK_API_KEY", "").strip()
 CHANNEL_ID = os.getenv("CHANNEL_ID", "")
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
@@ -28,7 +29,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ── Flask (единственный веб-сервер) ─────────────────────────────────
+# ── Flask ────────────────────────────────────────────────────────────
 app_flask = Flask(__name__)
 
 
@@ -82,14 +83,17 @@ def kb(*buttons_rows):
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def get_claude_client():
-    if CLAUDE_API_KEY:
-        return anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+def get_grok_client():
+    if GROK_API_KEY:
+        return OpenAI(
+            api_key=GROK_API_KEY,
+            base_url="https://api.x.ai/v1"
+        )
     return None
 
 
-# ── Claude AI ───────────────────────────────────────────────────────
-CLAUDE_SYSTEM_PROMPT = """Ty — professionalnyy videomontazhor i rezhissor, specializiruyushchiysya na:
+# ── Grok AI ─────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """Ty — professionalnyy videomontazhor i rezhissor, specializiruyushchiysya na:
 - TikTok i Reels editakh (bystryy dinamichnyy montazh)
 - Sportivnykh khaylaitakh i klipakh
 - Muzykalnykh editakh pod bit
@@ -126,10 +130,10 @@ Esli net ssylki na video — obyazatelno poprosi ee.
 Otvechay na yazyke polzovatelya."""
 
 
-async def ask_claude(user_id, user_message):
-    client = get_claude_client()
+async def ask_grok(user_id, user_message):
+    client = get_grok_client()
     if not client:
-        return "Claude AI ne nastroyen. Dobavte CLAUDE_API_KEY v peremennye Railway.", None
+        return "Grok AI ne nastroyen. Dobavte GROK_API_KEY v peremennye Railway.", None
 
     if user_id not in ai_conversations:
         ai_conversations[user_id] = []
@@ -142,18 +146,19 @@ async def ask_claude(user_id, user_message):
     if len(ai_conversations[user_id]) > 20:
         ai_conversations[user_id] = ai_conversations[user_id][-20:]
 
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + ai_conversations[user_id]
+
     loop = asyncio.get_running_loop()
     response = await loop.run_in_executor(
         None,
-        lambda: client.messages.create(
-            model="claude-sonnet-4-20250514",
+        lambda: client.chat.completions.create(
+            model="grok-3-mini",
             max_tokens=1024,
-            system=CLAUDE_SYSTEM_PROMPT,
-            messages=ai_conversations[user_id]
+            messages=messages
         )
     )
 
-    reply = response.content[0].text
+    reply = response.choices[0].message.content
     ai_conversations[user_id].append({
         "role": "assistant",
         "content": reply
@@ -162,7 +167,6 @@ async def ask_claude(user_id, user_message):
     params = None
     if "<PARAMS>" in reply and "</PARAMS>" in reply:
         try:
-            import json
             params_str = reply.split("<PARAMS>")[1].split("</PARAMS>")[0].strip()
             params = json.loads(params_str)
             reply = reply.split("<PARAMS>")[0].strip()
@@ -175,13 +179,13 @@ async def ask_claude(user_id, user_message):
 # ── Команды ─────────────────────────────────────────────────────────
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    claude_status = "Claude AI agent aktiven" if CLAUDE_API_KEY else "Claude AI ne nastroyen"
+    ai_status = "Grok AI agent aktiven" if GROK_API_KEY else "Grok AI ne nastroyen"
     await message.answer(
         "Privet! Ya professionalnyy montazhor video s AI.\n\n"
         "Sozdayu edity, Reels, TikTok roliki iz YouTube video.\n\n"
-        "Status: " + claude_status + "\n\n"
+        "Status: " + ai_status + "\n\n"
         "Komandy:\n"
-        "/ai — opisat chto khochesh, Claude sdelaet sam\n"
+        "/ai — opisat chto khochesh, Grok sdelaet sam\n"
         "/edit — sozdat video cherez knopki\n"
         "/setmusic — ustanovit fonovuyu muzyku\n"
         "/help — pomoshch"
@@ -192,7 +196,7 @@ async def cmd_start(message: Message):
 async def cmd_help(message: Message):
     await message.answer(
         "Kak polzovatsya botom\n\n"
-        "/ai — umnyy rezhim s Claude\n"
+        "/ai — umnyy rezhim s Grok\n"
         "Opishite chto khotite slovami\n"
         "Naprimer: Sdelay edit Ronaldo 30 sekund dlya TikTok\n\n"
         "/edit — ruchnoy rezhim cherez knopki\n\n"
@@ -213,10 +217,10 @@ async def cmd_ai(message: Message, state: FSMContext):
 
     args = message.text.strip().split(maxsplit=1)
 
-    if not CLAUDE_API_KEY:
+    if not GROK_API_KEY:
         await message.answer(
-            "Claude AI ne nastroyen\n\n"
-            "Dobavte peremennuyu CLAUDE_API_KEY v Railway:\n"
+            "Grok AI ne nastroyen\n\n"
+            "Dobavte peremennuyu GROK_API_KEY v Railway:\n"
             "Settings - Variables - Add Variable"
         )
         return
@@ -227,7 +231,7 @@ async def cmd_ai(message: Message, state: FSMContext):
         await process_ai_message(message, state, args[1].strip())
     else:
         await message.answer(
-            "Claude AI Montazhor\n\n"
+            "Grok AI Montazhor\n\n"
             "Opishite chto khotite sozdat:\n\n"
             "Primery:\n"
             "Sdelay edit Ronaldo 30 sekund dlya TikTok\n"
@@ -244,15 +248,15 @@ async def handle_ai_message(message: Message, state: FSMContext):
 
 async def process_ai_message(message: Message, state: FSMContext, text: str):
     user_id = message.from_user.id
-    thinking_msg = await message.answer("Claude dumayet...")
+    thinking_msg = await message.answer("Grok dumayet...")
 
     try:
-        reply, params = await ask_claude(user_id, text)
+        reply, params = await ask_grok(user_id, text)
         await thinking_msg.delete()
 
         if params and params.get("ready") and params.get("video_url"):
             confirm_text = (
-                "Claude gotov k montazhu!\n\n" +
+                "Grok gotov k montazhu!\n\n" +
                 reply + "\n\n"
                 "Parametry:\n"
                 "Dlina: " + str(params.get("duration", 30)) + " sek\n"
@@ -271,16 +275,16 @@ async def process_ai_message(message: Message, state: FSMContext, text: str):
             await state.update_data(ai_params=params)
             await message.answer(confirm_text, reply_markup=confirm_kb)
         else:
-            await message.answer("Claude:\n\n" + reply)
+            await message.answer("Grok:\n\n" + reply)
 
     except Exception as e:
-        logger.error("Claude AI error: %s", e)
+        logger.error("Grok AI error: %s", e)
         try:
             await thinking_msg.delete()
         except Exception:
             pass
         await state.clear()
-        await message.answer("Oshibka Claude AI:\n" + str(e)[:200] + "\n\nPoprobuy /ai snova")
+        await message.answer("Oshibka Grok AI:\n" + str(e)[:200] + "\n\nPoprobuy /ai snova")
 
 
 @dp.callback_query(F.data == "ai_start_edit")
@@ -288,7 +292,7 @@ async def ai_start_edit(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     params = data.get("ai_params", {})
     await state.clear()
-    await callback.message.edit_text("Nachinayu montazh po ukazaniyam Claude... Eto zaymet 2-5 minut")
+    await callback.message.edit_text("Nachinayu montazh po ukazaniyam Grok... Eto zaymet 2-5 minut")
     asyncio.create_task(process_video(callback.from_user.id, callback.message.chat.id, params, bot))
     await callback.answer()
 
@@ -504,7 +508,6 @@ async def process_video(user_id, chat_id, data, bot_instance):
         if proc.returncode != 0 or not raw_video.exists():
             raise Exception("Oshibka skachivanya: " + stderr.decode()[:200])
 
-        # Получаем длительность исходного видео
         probe_cmd = [
             "ffprobe", "-v", "quiet", "-print_format", "ini",
             "-show_format", str(raw_video)
@@ -537,7 +540,6 @@ async def process_video(user_id, chat_id, data, bot_instance):
 
         await bot_instance.send_message(chat_id, "Montiruyu video...")
 
-        # Фильтры по соотношению сторон
         ratio_filters = {
             "9:16": "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
             "16:9": "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080",
@@ -545,7 +547,6 @@ async def process_video(user_id, chat_id, data, bot_instance):
         }
         scale_filter = ratio_filters.get(ratio, ratio_filters["9:16"])
 
-        # Цветокоррекция и фейды по типу контента
         if content_type == "edit":
             color_filter = "eq=contrast=1.15:saturation=1.2:brightness=0.02"
             fade_in = "fade=t=in:st=0:d=0.1"
@@ -589,7 +590,6 @@ async def process_video(user_id, chat_id, data, bot_instance):
         if proc3.returncode != 0 or not trimmed.exists():
             raise Exception("FFmpeg oshibka: " + stderr3.decode()[-300:])
 
-        # Наложение музыки (если есть)
         music_path = user_sessions.get(user_id, {}).get("music_path")
         final_output = OUTPUT_DIR / ("result_" + session_id + ".mp4")
 
@@ -618,7 +618,6 @@ async def process_video(user_id, chat_id, data, bot_instance):
         if not final_output.exists() or final_output.stat().st_size == 0:
             raise Exception("Fayl ne sozdan")
 
-        # Сжатие если файл > 50 МБ
         file_size_mb = final_output.stat().st_size / (1024 * 1024)
         if file_size_mb > 50:
             await bot_instance.send_message(
@@ -637,7 +636,6 @@ async def process_video(user_id, chat_id, data, bot_instance):
             if compressed.exists():
                 final_output = compressed
 
-        # Отправка результата
         await bot_instance.send_message(chat_id, "Otpravlyayu gotovoe video...")
 
         type_labels = {"edit": "Edit", "reels": "Reels TikTok", "cinematic": "Cinematic"}
@@ -678,6 +676,11 @@ async def process_video(user_id, chat_id, data, bot_instance):
 
 # ── Запуск ──────────────────────────────────────────────────────────
 async def main():
+    logger.info("=== BOT STARTING ===")
+    logger.info("BOT_TOKEN set: %s (len=%d)", bool(BOT_TOKEN), len(BOT_TOKEN))
+    logger.info("GROK_API_KEY set: %s (len=%d)", bool(GROK_API_KEY), len(GROK_API_KEY))
+    if GROK_API_KEY:
+        logger.info("Key starts with: '%s'", GROK_API_KEY[:12])
     threading.Thread(target=run_flask, daemon=True).start()
     logger.info("Bot started!")
     await dp.start_polling(bot)
